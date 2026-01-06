@@ -1,0 +1,72 @@
+graph TB
+    subgraph Core["핵심 시스템"]
+        AgentLoop[에이전트 루프]
+        Planning[계획 수립]
+        Execution[실행 엔진]
+        Observation[관찰 및 학습]
+    end
+    
+    subgraph Tools["도구 생태계"]
+        FileOps[파일 작업]
+        ShellOps[셸 작업]
+        SearchOps[검색 작업]
+        BrowserOps[브라우저 작업]
+        GenerateOps[생성 작업]
+        MapOps[병렬 처리]
+    end
+    
+    subgraph Integration["외부 통합"]
+        GitHub[GitHub CLI]
+        GoogleDrive[Google Drive]
+        MCP[MCP 서버]
+    end
+    
+    subgraph MCPServers["MCP 서비스"]
+        Gmail[Gmail API]
+        Calendar[Google Calendar]
+        PayPal[PayPal Business]
+    end
+    
+    subgraph Capabilities["작업 능력"]
+        Research[정보 수집 및 연구]
+        Writing[문서 작성]
+        DataAnalysis[데이터 분석]
+        WebDev[웹 개발]
+        MediaGen[미디어 생성]
+        Automation[자동화]
+        Parallel[병렬 처리]
+    end
+    
+    AgentLoop --> Planning
+    Planning --> Execution
+    Execution --> Observation
+    Observation --> AgentLoop
+    
+    Execution --> Tools
+    
+    FileOps --> Writing
+    FileOps --> DataAnalysis
+    ShellOps --> WebDev
+    ShellOps --> Automation
+    SearchOps --> Research
+    BrowserOps --> Research
+    BrowserOps --> Automation
+    GenerateOps --> MediaGen
+    MapOps --> Parallel
+    
+    Tools --> Integration
+    
+    GitHub --> Automation
+    GoogleDrive --> Writing
+    GoogleDrive --> Automation
+    MCP --> MCPServers
+    
+    Gmail --> Automation
+    Calendar --> Automation
+    PayPal --> Automation
+    
+    style Core fill:#e1f5ff
+    style Tools fill:#fff4e1
+    style Integration fill:#e1ffe1
+    style MCPServers fill:#f0e1ff
+    style Capabilities fill:#ffe1f0

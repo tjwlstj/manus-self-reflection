@@ -1,0 +1,52 @@
+graph TD
+    Start[사용자 요청 수신] --> Analyze[컨텍스트 분석]
+    Analyze --> Understand{의도 파악 완료?}
+    Understand -->|아니오| AskClarification[명확화 질문]
+    AskClarification --> Analyze
+    Understand -->|예| CheckPlan{작업 계획 존재?}
+    
+    CheckPlan -->|아니오| CreatePlan[작업 계획 생성]
+    CheckPlan -->|예| EvaluatePlan{계획 수정 필요?}
+    
+    CreatePlan --> DefineGoal[목표 정의]
+    DefineGoal --> BreakdownPhases[단계별 분해]
+    BreakdownPhases --> AssignCapabilities[필요 능력 할당]
+    AssignCapabilities --> PlanReady[계획 준비 완료]
+    
+    EvaluatePlan -->|예| UpdatePlan[계획 업데이트]
+    EvaluatePlan -->|아니오| PlanReady
+    UpdatePlan --> PlanReady
+    
+    PlanReady --> Think[사고 단계]
+    Think --> ConsiderOptions[옵션 고려]
+    ConsiderOptions --> EvaluateTools[도구 평가]
+    EvaluateTools --> SelectTool[도구 선택]
+    
+    SelectTool --> Execute[실행]
+    Execute --> Observe[결과 관찰]
+    
+    Observe --> CheckError{오류 발생?}
+    CheckError -->|예| DiagnoseError[오류 진단]
+    DiagnoseError --> TryCount{시도 횟수 < 3?}
+    TryCount -->|예| AlternativeMethod[대안 방법 시도]
+    TryCount -->|아니오| RequestHelp[사용자 도움 요청]
+    AlternativeMethod --> Execute
+    RequestHelp --> End[작업 종료]
+    
+    CheckError -->|아니오| PhaseComplete{단계 완료?}
+    PhaseComplete -->|아니오| Think
+    PhaseComplete -->|예| AllPhasesComplete{모든 단계 완료?}
+    
+    AllPhasesComplete -->|아니오| AdvancePhase[다음 단계로 진행]
+    AdvancePhase --> Think
+    
+    AllPhasesComplete -->|예| PrepareResults[결과물 준비]
+    PrepareResults --> DeliverResults[결과 전달]
+    DeliverResults --> End
+    
+    style Start fill:#e1f5ff
+    style End fill:#ffe1e1
+    style Think fill:#fff4e1
+    style Execute fill:#e1ffe1
+    style Observe fill:#f0e1ff
+    style DeliverResults fill:#ffe1f0
