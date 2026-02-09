@@ -1,0 +1,21 @@
+{
+  "task": "논리 오류 감지(logic-checker) 하위 스킬 설계",
+  "requests": [
+    {
+      "model": "gemini",
+      "role": "Broad Researcher",
+      "prompt": "AI/LLM이 범하기 쉬운 대표적인 논리적 오류(logical fallacy) 유형을 10가지 이상 조사해주세요. 각 오류에 대해 다음을 포함해주세요:\n1. 오류 이름 (한글 + 영문)\n2. 정의 (1-2문장)\n3. LLM이 이 오류를 범하는 전형적인 상황 예시\n4. 감지를 위한 핵심 키워드나 패턴\n\n결과는 JSON 배열 형식으로 출력해주세요."
+    },
+    {
+      "model": "gpt",
+      "role": "Code Specialist",
+      "prompt": "Manus 스킬 시스템용 '논리 오류 감지기(logic-checker)' Python 스크립트를 작성해주세요.\n\n요구사항:\n1. 입력 텍스트를 받아 논리적 오류 가능성을 분석하는 함수 `check_logic(text: str) -> dict`\n2. 최소 5가지 논리적 오류 패턴을 감지 (순환논증, 허수아비 논증, 거짓 이분법, 성급한 일반화, 권위에의 호소)\n3. 각 감지된 오류에 대해 오류 유형, 해당 문장, 심각도(low/medium/high), 수정 제안을 반환\n4. CLI로도 사용 가능하도록 argparse 포함\n5. 타입 힌트, docstring 포함\n\n스크립트 파일명: check_logic.py"
+    }
+  ],
+  "cross_verify": [
+    {
+      "source_index": 1,
+      "verifier_model": "gemini"
+    }
+  ]
+}
