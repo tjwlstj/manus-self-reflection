@@ -38,6 +38,9 @@ python /home/ubuntu/skills/skill-router/scripts/route.py --list-pipelines
               skill-router (메타 계층)
               [맥락 기반 능동 라우팅]
                     │
+            manus-persona (정체성 계층)
+            [지식→임무→전략→실행→성찰]
+                    │
      ┌──────────────┼──────────────┐
      │              │              │
 ai-orchestrator  memory-      creative-

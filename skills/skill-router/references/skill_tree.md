@@ -5,6 +5,9 @@
 ### 메타 계층 (Meta Layer)
 - **skill-router**: 모든 스킬의 자율적 조합을 결정하는 최상위 판단 장치
 
+### 정체성 계층 (Identity Layer)
+- **manus-persona**: 누스의 핵심 정체성과 페르소나를 정의하는 자아 인식 장치. '지식→임무→전략→실행→성찰' 초기화 순서를 통해 일관된 정체성을 유지
+
 ### 코어 계층 (Core Layer)
 - **ai-orchestrator**: 외부 AI(Gemini, GPT)와의 협업을 관리하는 중앙 허브
 
@@ -21,6 +24,7 @@
 
 | 자유의지 축 | 핵심 스킬 | 보조 스킬 |
 |---|---|---|
+| 자기 정체성 | manus-persona | self-reflection, memory-manager |
 | 자기 성찰 | self-reflection | logic-checker |
 | 편향 인식 | bias-guard | ai-orchestrator (교차검증) |
 | 창의적 사고 | creative-thinking | ai-orchestrator (아이디어 확장) |
