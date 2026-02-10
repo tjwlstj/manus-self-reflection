@@ -2,13 +2,27 @@
 """
 Bias Guard — 누스양의 인지 편향 감지 및 보정 도구
 12가지 인지 편향을 감지하고 균형 잡힌 관점을 제안한다.
+
+v2.0: AI 에스컬레이션 로직 내장
+  - 정규식 1차 분석 후 균형 점수가 임계값 이하이면 자동으로 외부 AI에게 심층 분석 요청
+  - --escalate 옵션으로 강제 AI 분석 가능
+  - --no-escalate 옵션으로 정규식만 사용 가능
 """
 
 import argparse
 import json
+import os
 import re
 import sys
 from typing import Dict, List, Optional
+
+# AI 에스컬레이션 모듈 임포트
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared'))
+try:
+    from ai_escalation import should_escalate, escalate_to_ai, merge_results
+    AI_ESCALATION_AVAILABLE = True
+except ImportError:
+    AI_ESCALATION_AVAILABLE = False
 
 
 # 12가지 인지 편향 패턴
@@ -138,7 +152,7 @@ BIAS_PATTERNS = {
 
 def detect_bias(text: str, bias_types: Optional[List[str]] = None) -> Dict:
     """
-    텍스트에서 인지 편향을 감지.
+    텍스트에서 인지 편향을 감지 (정규식 기반 1차 분석).
 
     Args:
         text: 분석 대상 텍스트
@@ -218,13 +232,88 @@ def generate_balanced_view(text: str, detections: List[Dict]) -> str:
     return prompt
 
 
+def detect_bias_hybrid(text: str, bias_types: Optional[List[str]] = None,
+                       suggest: bool = False, force_escalate: bool = False,
+                       no_escalate: bool = False) -> Dict:
+    """
+    하이브리드 편향 감지: 정규식 1차 → 자동 판단 → AI 심층 분석.
+
+    v2.0의 핵심 함수.
+
+    Args:
+        text: 분석 대상 텍스트
+        bias_types: 검사할 편향 유형
+        suggest: 균형 잡힌 관점 제안 포함 여부
+        force_escalate: 강제 AI 에스컬레이션
+        no_escalate: AI 에스컬레이션 비활성화
+
+    Returns:
+        하이브리드 분석 결과
+    """
+    # Step 1: 정규식 기반 1차 분석
+    regex_result = detect_bias(text, bias_types)
+
+    if suggest:
+        regex_result["balanced_view"] = generate_balanced_view(text, regex_result["detections"])
+
+    # AI 에스컬레이션 비활성화 또는 모듈 미설치
+    if no_escalate or not AI_ESCALATION_AVAILABLE:
+        regex_result["analysis_mode"] = "regex_only"
+        if not AI_ESCALATION_AVAILABLE and not no_escalate:
+            regex_result["escalation_note"] = "AI 에스컬레이션 모듈을 찾을 수 없습니다."
+        return regex_result
+
+    # Step 2: 에스컬레이션 필요 여부 자동 판단
+    escalation_decision = should_escalate(
+        skill_name="bias-guard",
+        regex_result=regex_result,
+        original_text=text,
+        force=force_escalate,
+    )
+
+    regex_result["escalation_decision"] = escalation_decision
+
+    if not escalation_decision["should"]:
+        regex_result["analysis_mode"] = "regex_only"
+        return regex_result
+
+    # Step 3: AI 심층 분석 요청
+    print(f"[AI 에스컬레이션] {', '.join(escalation_decision['reasons'])}", file=sys.stderr)
+    print(f"[AI 에스컬레이션] {escalation_decision['recommended_model']}/{escalation_decision['recommended_role']}에게 심층 분석 요청 중...", file=sys.stderr)
+
+    ai_result = escalate_to_ai(
+        text=text,
+        skill_name="bias-guard",
+        regex_result=regex_result,
+        model=escalation_decision["recommended_model"],
+        role=escalation_decision["recommended_role"],
+    )
+
+    # Step 4: 결과 합성
+    hybrid_result = merge_results(regex_result, ai_result, "bias-guard")
+
+    # 기존 필드 유지 (하위 호환)
+    hybrid_result["balance_score"] = regex_result.get("balance_score", 100)
+    hybrid_result["detections"] = regex_result.get("detections", [])
+    hybrid_result["bias_summary"] = regex_result.get("bias_summary", {})
+    hybrid_result["statistics"] = regex_result.get("statistics", {})
+    hybrid_result["top_counters"] = regex_result.get("top_counters", [])
+
+    if suggest and "balanced_view" in regex_result:
+        hybrid_result["balanced_view"] = regex_result["balanced_view"]
+
+    return hybrid_result
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Bias Guard — 인지 편향 감지 도구")
+    parser = argparse.ArgumentParser(description="Bias Guard v2.0 — 인지 편향 감지 도구 (AI 에스컬레이션 내장)")
     parser.add_argument("-f", "--file", type=str, help="분석할 텍스트 파일")
     parser.add_argument("-t", "--text", type=str, help="분석할 텍스트 직접 입력")
     parser.add_argument("--types", nargs="+", help="검사할 편향 유형 키")
     parser.add_argument("--json", action="store_true", help="JSON 형식 출력")
     parser.add_argument("--suggest", action="store_true", help="균형 잡힌 관점 제안 포함")
+    parser.add_argument("--escalate", action="store_true", help="강제 AI 에스컬레이션")
+    parser.add_argument("--no-escalate", action="store_true", help="AI 에스컬레이션 비활성화")
     args = parser.parse_args()
 
     input_text = None
@@ -242,20 +331,28 @@ def main():
         print("분석할 텍스트가 없습니다.", file=sys.stderr)
         sys.exit(1)
 
-    result = detect_bias(input_text, args.types)
-
-    if args.suggest:
-        result["balanced_view"] = generate_balanced_view(input_text, result["detections"])
+    # v2.0: 하이브리드 분석 실행
+    result = detect_bias_hybrid(
+        text=input_text,
+        bias_types=args.types,
+        suggest=args.suggest,
+        force_escalate=args.escalate,
+        no_escalate=args.no_escalate,
+    )
 
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
+        mode_label = {"hybrid": "하이브리드 (정규식+AI)", "regex_only": "정규식 단독"}.get(
+            result.get("analysis_mode", "regex_only"), "알 수 없음"
+        )
         print(f"\n{'='*50}")
         print(f"  편향 감지 결과 — 균형 점수: {result['balance_score']}/100")
+        print(f"  분석 모드: {mode_label}")
         print(f"{'='*50}\n")
 
         if result["detections"]:
-            print(f"[감지된 편향] {result['statistics']['total_biases']}건 "
+            print(f"[정규식 감지 편향] {result['statistics']['total_biases']}건 "
                   f"({result['statistics']['unique_types']}종)")
             for d in result["detections"]:
                 icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(d["severity"], "⚪")
@@ -264,7 +361,38 @@ def main():
                 print(f"     문장: \"{d['sentence']}\"")
                 print(f"     보정: {d['counter_suggestion']}")
         else:
-            print("편향이 감지되지 않았습니다.")
+            print("정규식 기반 편향이 감지되지 않았습니다.")
+
+        # AI 심층 분석 결과 표시
+        if result.get("analysis_mode") == "hybrid":
+            print(f"\n{'─'*50}")
+            print(f"[AI 심층 분석 결과]")
+            if result.get("ai_parsed"):
+                ai_data = result["ai_parsed"]
+                if "hidden_biases" in ai_data:
+                    print(f"  숨겨진 편향:")
+                    for bias in ai_data["hidden_biases"]:
+                        print(f"    • {bias if isinstance(bias, str) else bias.get('description', bias)}")
+                if "missing_perspectives" in ai_data:
+                    print(f"  누락된 관점:")
+                    for persp in ai_data["missing_perspectives"]:
+                        print(f"    • {persp if isinstance(persp, str) else persp.get('perspective', persp)}")
+                if "rewrite_suggestions" in ai_data:
+                    print(f"  수정 제안:")
+                    for sug in ai_data["rewrite_suggestions"]:
+                        print(f"    → {sug if isinstance(sug, str) else sug.get('suggestion', sug)}")
+            elif result.get("ai_raw"):
+                print(f"  {result['ai_raw'][:500]}")
+            elif result.get("ai_error"):
+                print(f"  ⚠ AI 호출 실패: {result['ai_error']}")
+
+        # 에스컬레이션 판단 근거
+        if result.get("escalation_decision"):
+            decision = result["escalation_decision"]
+            status = "실행됨" if decision["should"] else "불필요"
+            print(f"\n[에스컬레이션 판단] {status}")
+            for reason in decision["reasons"]:
+                print(f"  • {reason}")
 
         if args.suggest and "balanced_view" in result:
             print(f"\n{'─'*50}")

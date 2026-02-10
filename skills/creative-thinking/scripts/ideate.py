@@ -1,14 +1,28 @@
 #!/usr/bin/env python3
 """
-Creative Thinking Engine — 누스양의 창의적 사고 도구
-기존 틀을 벗어나 다관점 발상과 아이디어 확장을 지원한다.
+Creative Thinking Engine v2.0 — 누스양의 창의적 사고 도구 (AI 확장 생성 지원)
+
+v1.0과의 차이점:
+  1. AI 확장 생성: 정규식 기반 질문 생성 후 auto_dispatch를 통해 AI가 실제 아이디어를 생성
+  2. 자동 에스컬레이션: 주제의 복잡도가 높으면 자동으로 AI에게 창의적 확장 요청
+  3. 듀얼 모드: 프레임워크만 제공하는 기존 모드 + AI가 아이디어까지 생성하는 확장 모드
 """
 
 import argparse
 import json
+import os
 import random
 import sys
 from typing import Dict, List, Optional
+
+
+# AI 에스컬레이션 모듈 임포트
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared'))
+try:
+    from ai_escalation import escalate_to_ai
+    AI_ESCALATION_AVAILABLE = True
+except ImportError:
+    AI_ESCALATION_AVAILABLE = False
 
 
 # 사고 기법 정의
@@ -52,12 +66,12 @@ THINKING_TECHNIQUES = {
         "description": "6가지 관점에서 동시에 사고한다",
         "prompt_template": "'{topic}'을(를) 6가지 관점에서 분석한다.",
         "questions": [
-            "⚪ 백색 모자 (사실): 객관적 데이터와 사실만으로 보면?",
-            "🔴 적색 모자 (감정): 직감적으로 어떻게 느껴지는가?",
-            "⚫ 흑색 모자 (비판): 잠재적 위험과 문제점은?",
-            "🟡 황색 모자 (낙관): 최선의 시나리오와 기회는?",
-            "🟢 녹색 모자 (창의): 새로운 아이디어와 대안은?",
-            "🔵 청색 모자 (관리): 전체 과정을 어떻게 조율할 것인가?",
+            "백색 모자 (사실): 객관적 데이터와 사실만으로 보면?",
+            "적색 모자 (감정): 직감적으로 어떻게 느껴지는가?",
+            "흑색 모자 (비판): 잠재적 위험과 문제점은?",
+            "황색 모자 (낙관): 최선의 시나리오와 기회는?",
+            "녹색 모자 (창의): 새로운 아이디어와 대안은?",
+            "청색 모자 (관리): 전체 과정을 어떻게 조율할 것인가?",
         ]
     },
     "first_principles": {
@@ -101,7 +115,7 @@ def generate_random_questions(topic: str) -> List[str]:
 def ideate(topic: str, techniques: Optional[List[str]] = None,
            count: int = 3) -> Dict:
     """
-    주제에 대해 창의적 사고 기법을 적용.
+    주제에 대해 창의적 사고 기법을 적용 (프레임워크 생성).
 
     Args:
         topic: 사고 대상 주제
@@ -155,8 +169,141 @@ def generate_meta_prompt(topic: str, explorations: List[Dict]) -> str:
     return prompt
 
 
+# ---------------------------------------------------------------------------
+# v2.0: AI 확장 생성 기능
+# ---------------------------------------------------------------------------
+
+def assess_topic_complexity(topic: str) -> Dict:
+    """
+    주제의 복잡도를 평가하여 AI 확장 필요성을 판단.
+
+    Returns:
+        complexity_score: 0~10
+        needs_ai_expansion: bool
+        reasons: list
+    """
+    score = 0
+    reasons = []
+
+    # 길이 기반
+    if len(topic) > 100:
+        score += 2
+        reasons.append("주제 설명이 길고 상세함")
+    elif len(topic) > 50:
+        score += 1
+
+    # 복합 주제 감지
+    compound_signals = ["그리고", "또한", "뿐만 아니라", "동시에", "+", "&", "및"]
+    for signal in compound_signals:
+        if signal in topic:
+            score += 1
+            reasons.append(f"복합 주제 신호 감지: '{signal}'")
+
+    # 추상적 주제 감지
+    abstract_signals = ["본질", "의미", "가치", "철학", "원리", "패러다임", "혁신", "미래"]
+    for signal in abstract_signals:
+        if signal in topic:
+            score += 2
+            reasons.append(f"추상적/고차원 주제: '{signal}'")
+
+    # 전문 분야 감지
+    expert_signals = ["AI", "양자", "블록체인", "유전자", "나노", "신경", "알고리즘"]
+    for signal in expert_signals:
+        if signal in topic:
+            score += 2
+            reasons.append(f"전문 분야 주제: '{signal}'")
+
+    return {
+        "complexity_score": min(10, score),
+        "needs_ai_expansion": score >= 3,
+        "reasons": reasons,
+    }
+
+
+def ideate_with_ai(topic: str, techniques: Optional[List[str]] = None,
+                    count: int = 3, force_ai: bool = False,
+                    no_ai: bool = False) -> Dict:
+    """
+    v2.0 하이브리드 아이디어 생성: 프레임워크 생성 + AI 확장.
+
+    Args:
+        topic: 사고 대상 주제
+        techniques: 적용할 기법 목록
+        count: 기법 수
+        force_ai: 강제 AI 확장
+        no_ai: AI 확장 비활성화
+
+    Returns:
+        프레임워크 + AI 생성 아이디어
+    """
+    # Step 1: 기존 프레임워크 생성
+    framework = ideate(topic, techniques, count)
+
+    if no_ai or not AI_ESCALATION_AVAILABLE:
+        framework["mode"] = "framework_only"
+        if not AI_ESCALATION_AVAILABLE and not no_ai:
+            framework["ai_note"] = "AI 에스컬레이션 모듈을 찾을 수 없습니다."
+        return framework
+
+    # Step 2: 주제 복잡도 평가
+    complexity = assess_topic_complexity(topic)
+    framework["topic_complexity"] = complexity
+
+    if not force_ai and not complexity["needs_ai_expansion"]:
+        framework["mode"] = "framework_only"
+        framework["ai_decision"] = "주제 복잡도가 낮아 AI 확장 불필요"
+        return framework
+
+    # Step 3: AI에게 아이디어 생성 요청
+    print(f"[creative-thinking] AI 확장 생성 시작 (복잡도: {complexity['complexity_score']}/10)", file=sys.stderr)
+
+    meta_prompt = framework["meta_prompt"]
+    ai_result = escalate_to_ai(
+        text=meta_prompt,
+        skill_name="creative-thinking",
+        regex_result=framework,
+        model="gemini",  # 창의적 작업은 Gemini 우선
+        role="Idea Generator",
+    )
+
+    framework["mode"] = "hybrid"
+    framework["ai_expansion"] = {
+        "success": ai_result.get("success", False),
+        "model": ai_result.get("model", ""),
+        "raw_response": ai_result.get("raw", "")[:3000],
+    }
+
+    # AI 응답 파싱 시도
+    if ai_result.get("parsed"):
+        framework["ai_expansion"]["parsed_ideas"] = ai_result["parsed"]
+    elif ai_result.get("raw"):
+        framework["ai_expansion"]["ideas_text"] = ai_result["raw"][:3000]
+
+    # Step 4: 듀얼 생성 (복잡도 높으면 GPT도 호출)
+    if complexity["complexity_score"] >= 7:
+        print(f"[creative-thinking] 고복잡도 — GPT 듀얼 생성 추가", file=sys.stderr)
+        gpt_result = escalate_to_ai(
+            text=meta_prompt,
+            skill_name="creative-thinking",
+            regex_result=framework,
+            model="gpt",
+            role="Idea Generator",
+        )
+        framework["ai_expansion"]["dual_response"] = {
+            "success": gpt_result.get("success", False),
+            "model": gpt_result.get("model", ""),
+            "raw_response": gpt_result.get("raw", "")[:3000],
+        }
+
+    return framework
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
 def main():
-    parser = argparse.ArgumentParser(description="Creative Thinking Engine — 창의적 사고 도구")
+    parser = argparse.ArgumentParser(description="Creative Thinking Engine v2.0 — 창의적 사고 도구 (AI 확장)")
     parser.add_argument("topic", nargs="?", help="사고 대상 주제")
     parser.add_argument("--techniques", nargs="+",
                         choices=list(THINKING_TECHNIQUES.keys()),
@@ -166,6 +313,8 @@ def main():
     parser.add_argument("--json", action="store_true", help="JSON 형식 출력")
     parser.add_argument("--meta-prompt", action="store_true",
                         help="ai-orchestrator용 통합 프롬프트만 출력")
+    parser.add_argument("--ai", action="store_true", help="강제 AI 확장 생성")
+    parser.add_argument("--no-ai", action="store_true", help="AI 확장 비활성화")
     args = parser.parse_args()
 
     if args.list:
@@ -179,7 +328,14 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    result = ideate(args.topic, args.techniques, args.count)
+    # v2.0: 하이브리드 모드
+    result = ideate_with_ai(
+        topic=args.topic,
+        techniques=args.techniques,
+        count=args.count,
+        force_ai=args.ai,
+        no_ai=args.no_ai,
+    )
 
     if args.meta_prompt:
         print(result["meta_prompt"])
@@ -188,14 +344,18 @@ def main():
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
+        mode_label = {"hybrid": "하이브리드 (프레임워크+AI)", "framework_only": "프레임워크 단독"}.get(
+            result.get("mode", "framework_only"), "알 수 없음"
+        )
         print(f"\n{'='*60}")
-        print(f"  창의적 사고 — 주제: {result['topic']}")
+        print(f"  창의적 사고 v2.0 — 주제: {result['topic']}")
+        print(f"  모드: {mode_label}")
         print(f"  적용 기법: {result['techniques_applied']}종, "
               f"탐색 질문: {result['total_questions']}개")
         print(f"{'='*60}\n")
 
         for exp in result["explorations"]:
-            print(f"▶ {exp['technique']}")
+            print(f"  {exp['technique']}")
             print(f"  {exp['description']}\n")
             print(f"  프롬프트: {exp['prompt']}\n")
             print(f"  탐색 질문:")
@@ -203,8 +363,36 @@ def main():
                 print(f"    ? {q}")
             print()
 
-        print(f"{'─'*60}")
-        print("💡 ai-orchestrator와 연계하려면 --meta-prompt 옵션을 사용하세요.")
+        # AI 확장 결과 표시
+        if result.get("mode") == "hybrid" and result.get("ai_expansion"):
+            ai_exp = result["ai_expansion"]
+            print(f"{'─'*60}")
+            print(f"[AI 확장 생성 결과]")
+            if ai_exp.get("parsed_ideas"):
+                for key, value in ai_exp["parsed_ideas"].items():
+                    print(f"  {key}:")
+                    if isinstance(value, list):
+                        for item in value:
+                            print(f"    • {item if isinstance(item, str) else json.dumps(item, ensure_ascii=False)}")
+                    else:
+                        print(f"    {value}")
+            elif ai_exp.get("ideas_text"):
+                print(f"  {ai_exp['ideas_text'][:1500]}")
+            elif ai_exp.get("raw_response"):
+                print(f"  {ai_exp['raw_response'][:1500]}")
+
+            if ai_exp.get("dual_response"):
+                print(f"\n[GPT 듀얼 생성 결과]")
+                dual = ai_exp["dual_response"]
+                if dual.get("raw_response"):
+                    print(f"  {dual['raw_response'][:1000]}")
+
+        # 복잡도 정보
+        if result.get("topic_complexity"):
+            tc = result["topic_complexity"]
+            print(f"\n[주제 복잡도] {tc['complexity_score']}/10")
+            for reason in tc.get("reasons", []):
+                print(f"  • {reason}")
 
 
 if __name__ == "__main__":
