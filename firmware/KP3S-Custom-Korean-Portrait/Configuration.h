@@ -63,7 +63,7 @@
 // @section info
 
 // Author info of this build printed to the host during boot and M115
-#define STRING_CONFIG_H_AUTHOR "(KP3S Korean Portrait v1.4)" // Original author or contributor.
+#define STRING_CONFIG_H_AUTHOR "(KP3S Korean Portrait v1.5)" // Original author or contributor.
 //#define CUSTOM_VERSION_FILE Version.h // Path from the root directory (no quotes)
 
 // @section machine
@@ -3569,7 +3569,7 @@
  *
  * :{ 'TFT_NO_ROTATION':'None', 'TFT_ROTATE_90':'90°', 'TFT_ROTATE_90_MIRROR_X':'90° (Mirror X)', 'TFT_ROTATE_90_MIRROR_Y':'90° (Mirror Y)', 'TFT_ROTATE_180':'180°', 'TFT_ROTATE_180_MIRROR_X':'180° (Mirror X)', 'TFT_ROTATE_180_MIRROR_Y':'180° (Mirror Y)', 'TFT_ROTATE_270':'270°', 'TFT_ROTATE_270_MIRROR_X':'270° (Mirror X)', 'TFT_ROTATE_270_MIRROR_Y':'270° (Mirror Y)', 'TFT_MIRROR_X':'Mirror X', 'TFT_MIRROR_Y':'Mirror Y' }
  */
-#define TFT_ROTATION TFT_ROTATE_270_MIRROR_Y
+#define TFT_ROTATION TFT_ROTATE_270
 
 //=============================================================================
 //============================  Other Controllers  ============================
